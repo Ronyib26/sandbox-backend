@@ -1,0 +1,55 @@
+# ============================================================================
+# CI  -  Se ejecuta en CADA Pull Request y en cada push a las ramas del flujo.
+# Es la puerta que decide si tu PR se puede fusionar o no.
+# ============================================================================
+name: Sandbox Backend - CI
+
+on:
+  pull_request:
+    branches: [QA, develop, main]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [QA, develop, main]
+  workflow_dispatch:
+
+jobs:
+  calidad:
+    name: Calidad (typecheck + datos + tests)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar el codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Typecheck (TypeScript)
+        run: npm run typecheck
+
+      - name: Validar datos del catalogo
+        run: npm run validate:data
+
+      - name: Pruebas unitarias y de API
+        run: npm test
+
+  imagen:
+    name: Construir imagen Docker (sin publicar)
+    runs-on: ubuntu-latest
+    needs: calidad
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # En un PR solo verificamos que la imagen COMPILA. Publicar es cosa del CD.
+      - name: Build de la imagen
+        run: docker build -t sandbox-backend:pr-${{ github.event.pull_request.number || github.run_number }} .

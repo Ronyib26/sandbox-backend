@@ -1,0 +1,54 @@
+# ============================================================================
+# Puerta de calidad de QA.
+# En el proyecto real este workflow es SonarCloud (necesita cuenta y token).
+# Aqui hace el mismo papel con reglas locales: solo corre en la rama QA
+# y en los PR dirigidos a QA, igual que el original.
+# ============================================================================
+name: Sandbox Backend - Quality Gate (QA)
+
+on:
+  push:
+    branches:
+      - QA
+  pull_request:
+    branches:
+      - QA
+    types: [opened, synchronize, reopened]
+
+jobs:
+  quality:
+    name: Analisis de calidad
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # historial completo, igual que lo pide SonarCloud
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Prohibir console.log en src/
+        run: |
+          if grep -rn "console\.log" src/ --include="*.ts" | grep -v "main.ts"; then
+            echo "::error::Hay console.log en el codigo fuente. Quitalos antes de mezclar a QA."
+            exit 1
+          fi
+          echo "Sin console.log sueltos."
+
+      - name: Reportar TODO / FIXME pendientes
+        run: |
+          COUNT=$(grep -rn "TODO\|FIXME" src/ --include="*.ts" | wc -l)
+          echo "TODO/FIXME encontrados: $COUNT"
+          if [ "$COUNT" -gt 5 ]; then
+            echo "::error::Demasiada deuda tecnica pendiente ($COUNT). Maximo permitido: 5."
+            exit 1
+          fi
+          echo "::notice::Deuda tecnica dentro del limite ($COUNT/5)"
+
+      - name: Suite completa
+        run: npm run ci

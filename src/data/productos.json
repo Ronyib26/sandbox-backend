@@ -1,0 +1,34 @@
+[
+  {
+    "id": 1,
+    "nombre": "Credito Personal",
+    "categoria": "credito",
+    "tasa": 18.5,
+    "plazoMeses": 36,
+    "activo": true
+  },
+  {
+    "id": 2,
+    "nombre": "Credito Hipotecario",
+    "categoria": "credito",
+    "tasa": 9.75,
+    "plazoMeses": 120,
+    "activo": true
+  },
+  {
+    "id": 3,
+    "nombre": "Ahorro Programado",
+    "categoria": "ahorro",
+    "tasa": 4.25,
+    "plazoMeses": 12,
+    "activo": true
+  },
+  {
+    "id": 4,
+    "nombre": "Seguro de Vida",
+    "categoria": "seguro",
+    "tasa": 2.0,
+    "plazoMeses": 12,
+    "activo": false
+  }
+]

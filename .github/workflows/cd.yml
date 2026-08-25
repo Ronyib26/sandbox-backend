@@ -1,0 +1,144 @@
+# ============================================================================
+# CD  -  Solo corre cuando algo YA se fusiono a QA / develop / main.
+# Replica la logica del workflow real de CORSA Backend:
+#   main    -> produccion
+#   develop -> preproduccion
+#   QA      -> qa
+# En el proyecto real publica a Docker Hub y despliega a Azure Web App.
+# Aqui publica a GHCR (registro gratis de GitHub) y hace un smoke test.
+# ============================================================================
+name: Sandbox Backend - CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - QA
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build y publicar imagen
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      env_name: ${{ steps.set-vars.outputs.env_name }}
+      image: ${{ steps.set-vars.outputs.image }}
+      slot: ${{ steps.set-vars.outputs.slot }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Mismo patron que usa el proyecto real para mapear rama -> ambiente
+      - name: Definir variables segun la rama
+        id: set-vars
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "env_name=produccion" >> $GITHUB_OUTPUT
+            echo "slot=production" >> $GITHUB_OUTPUT
+            echo "image=ghcr.io/$OWNER/sandbox-backend" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "env_name=preproduccion" >> $GITHUB_OUTPUT
+            echo "slot=preproduccion" >> $GITHUB_OUTPUT
+            echo "image=ghcr.io/$OWNER/prepro_sandbox-backend" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/QA" ]]; then
+            echo "env_name=qa" >> $GITHUB_OUTPUT
+            echo "slot=qa" >> $GITHUB_OUTPUT
+            echo "image=ghcr.io/$OWNER/qa_sandbox-backend" >> $GITHUB_OUTPUT
+          else
+            echo "Rama no soportada"; exit 1
+          fi
+
+      - name: Resumen del despliegue
+        run: |
+          echo "### Despliegue" >> $GITHUB_STEP_SUMMARY
+          echo "- Rama: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Ambiente: \`${{ steps.set-vars.outputs.env_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Imagen: \`${{ steps.set-vars.outputs.image }}:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # En CORSA aqui se usa secrets.DOCKERHUB_USERNAME / DOCKERHUB_TOKEN.
+      # GHCR acepta el GITHUB_TOKEN automatico: cero secretos que configurar.
+      - name: Login al registro de contenedores (GHCR)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build de la imagen
+        run: |
+          docker build -t ${{ steps.set-vars.outputs.image }}:${{ github.sha }} .
+          docker tag ${{ steps.set-vars.outputs.image }}:${{ github.sha }} ${{ steps.set-vars.outputs.image }}:latest
+
+      - name: Push de la imagen
+        run: |
+          docker push ${{ steps.set-vars.outputs.image }}:${{ github.sha }}
+          docker push ${{ steps.set-vars.outputs.image }}:latest
+
+  deploy:
+    name: Desplegar
+    runs-on: ubuntu-latest
+    needs: build
+
+    permissions:
+      contents: read
+      packages: read
+
+    # GitHub Environment: aqui es donde se configuran aprobaciones manuales
+    # (Settings > Environments > produccion > Required reviewers)
+    environment:
+      name: ${{ needs.build.outputs.env_name }}
+
+    steps:
+      - name: Login a GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # En el proyecto real este paso es azure/webapps-deploy@v2 hacia el slot.
+      # Aqui levantamos el contenedor y verificamos que responde: mismo concepto,
+      # sin costo ni riesgo.
+      - name: Levantar el contenedor recien publicado
+        run: |
+          docker run -d --name sandbox \
+            -p 3000:3000 \
+            -e ENV_NAME=${{ needs.build.outputs.env_name }} \
+            -e APP_VERSION=${{ github.sha }} \
+            ${{ needs.build.outputs.image }}:${{ github.sha }}
+
+      - name: Smoke test del health check
+        run: |
+          for intento in {1..10}; do
+            if curl -sf http://localhost:3000/health; then
+              echo ""
+              echo "Health check OK en el intento $intento"
+              exit 0
+            fi
+            echo "Intento $intento fallido, reintentando..."
+            sleep 3
+          done
+          echo "El servicio no respondio: DESPLIEGUE FALLIDO"
+          docker logs sandbox
+          exit 1
+
+      - name: Verificar un endpoint de negocio
+        run: |
+          curl -sf http://localhost:3000/api/productos | head -c 400
+          echo ""
+
+      - name: Reporte final
+        run: |
+          echo "### Desplegado en ${{ needs.build.outputs.env_name }} (slot: ${{ needs.build.outputs.slot }})" >> $GITHUB_STEP_SUMMARY
+          echo "Imagen: \`${{ needs.build.outputs.image }}:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
