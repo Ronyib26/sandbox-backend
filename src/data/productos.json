@@ -19,7 +19,7 @@
     "id": 3,
     "nombre": "Ahorro Programado",
     "categoria": "ahorro",
-    "tasa": 4.25,
+    "tasa": 5.0,
     "plazoMeses": 12,
     "activo": true
   },
@@ -27,7 +27,7 @@
     "id": 4,
     "nombre": "Seguro de Vida",
     "categoria": "seguro",
-    "tasa": 2.0,
+    "tasa": 3.5,
     "plazoMeses": 12,
     "activo": false
   },
