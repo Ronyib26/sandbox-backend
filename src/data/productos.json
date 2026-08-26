@@ -30,5 +30,13 @@
     "tasa": 2.0,
     "plazoMeses": 12,
     "activo": false
-  }
+  },
+  {
+      "id": 5,
+      "nombre": "Microcredito",
+      "categoria": "credito",
+      "tasa": 22.0,
+      "plazoMeses": 18,
+      "activo": true
+    }
 ]
