@@ -27,7 +27,7 @@
     "id": 4,
     "nombre": "Seguro de Vida",
     "categoria": "seguro",
-    "tasa": 2.0,
+    "tasa": 3.5,
     "plazoMeses": 12,
     "activo": false
   },
