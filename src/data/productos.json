@@ -19,7 +19,7 @@
     "id": 3,
     "nombre": "Ahorro Programado",
     "categoria": "ahorro",
-    "tasa": 4.25,
+    "tasa": 5.0,
     "plazoMeses": 12,
     "activo": true
   },
