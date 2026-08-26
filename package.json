@@ -9,7 +9,7 @@
     "start:dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "validate:data": "node scripts/validate-data.js",
-    "test": "npm run build && node --test \"dist/test/*.test.js\"",
+    "test": "npm run build && node --test dist/test/*.test.js",
     "ci": "npm run typecheck && npm run validate:data && npm test"
   },
   "dependencies": {
